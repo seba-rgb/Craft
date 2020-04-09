@@ -27,6 +27,7 @@
 #define MAX_NAME_LENGTH 32
 #define MAX_PATH_LENGTH 256
 #define MAX_ADDR_LENGTH 256
+#define MAX_MACRO_BLOCKS 4
 
 #define ALIGN_LEFT 0
 #define ALIGN_CENTER 1
@@ -136,6 +137,8 @@ typedef struct {
     int observe2;
     int flying;
     int recording_macro;
+    int macro_count;
+    Block macro_blocks [MAX_MACRO_BLOCKS];
     int item_index;
     int scale;
     int ortho;
@@ -1582,6 +1585,14 @@ void record_block(int x, int y, int z, int w) {
     g->block0.y = y;
     g->block0.z = z;
     g->block0.w = w;
+    if (g->recording_macro && (g->macro_count < MAX_MACRO_BLOCKS)) {
+        Block *pb = g->macro_blocks + g->macro_count;
+        pb->x = x;
+        pb->y = y;
+        pb->z = z;
+        pb->w = w;
+        g->macro_count++;
+    }
 }
 
 int get_block(int x, int y, int z) {
@@ -2273,7 +2284,13 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
             g->observe2 = (g->observe2 + 1) % g->player_count;
         }
         if (control && key == CRAFT_KEY_MACRO) {
-            g->recording_macro = !g->recording_macro;
+            if (g->recording_macro) {
+                g->recording_macro = 0;
+            }
+            else {
+                g->recording_macro = 1;
+                g->macro_count = 0;
+            }
         }
     }
 }
@@ -2862,17 +2879,22 @@ int main(int argc, char **argv) {
             float tx = ts / 2;
             float ty = g->height - ts;
             if (SHOW_INFO_TEXT) {
+                int mlen;
                 int hour = time_of_day() * 24;
                 char am_pm = hour < 12 ? 'a' : 'p';
                 hour = hour % 12;
                 hour = hour ? hour : 12;
-                snprintf(
+                mlen = snprintf(
                     text_buffer, 1024,
-                    "(%d, %d) (%.2f, %.2f, %.2f) [%d, %d, %d] %d%cm %dfps %s",
+                    "(%d, %d) (%.2f, %.2f, %.2f) [%d, %d, %d] %d%cm %dfps",
                     chunked(s->x), chunked(s->z), s->x, s->y, s->z,
                     g->player_count, g->chunk_count,
-                    face_count * 2, hour, am_pm, fps.fps,
-                    g->recording_macro ? "R" : "");
+                    face_count * 2, hour, am_pm, fps.fps);
+                if (g->recording_macro) {
+                    int remaining = 1023 - mlen;
+                    snprintf(text_buffer + mlen, remaining,
+                        " R%d", g->macro_count);
+                }
                 render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
                 ty -= ts * 2;
             }
