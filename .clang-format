@@ -7,3 +7,4 @@ BraceWrapping:
     AfterFunction: false
     BeforeElse: true
 AlignAfterOpenBracket: DontAlign
+AllowShortFunctionsOnASingleLine: false

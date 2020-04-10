@@ -161,7 +161,9 @@ typedef struct {
 static Model model;
 static Model *g = &model;
 
-int chunked(float x) { return floorf(roundf(x) / CHUNK_SIZE); }
+int chunked(float x) {
+    return floorf(roundf(x) / CHUNK_SIZE);
+}
 
 float time_of_day() {
     if (g->day_length <= 0) {
@@ -393,7 +395,9 @@ void draw_sign(Attrib *attrib, GLuint buffer, int length) {
     glDisable(GL_POLYGON_OFFSET_FILL);
 }
 
-void draw_cube(Attrib *attrib, GLuint buffer) { draw_item(attrib, buffer, 36); }
+void draw_cube(Attrib *attrib, GLuint buffer) {
+    draw_item(attrib, buffer, 36);
+}
 
 void draw_plant(Attrib *attrib, GLuint buffer) {
     draw_item(attrib, buffer, 24);
