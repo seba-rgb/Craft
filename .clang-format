@@ -1,1 +1,3 @@
 BreakBeforeBraces: Attach
+IncludeBlocks: Preserve
+IndentWidth: 4
