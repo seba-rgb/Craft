@@ -6,3 +6,4 @@ BraceWrapping:
     AfterStruct: false
     AfterFunction: false
     BeforeElse: true
+AlignAfterOpenBracket: DontAlign
