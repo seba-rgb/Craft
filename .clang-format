@@ -8,3 +8,4 @@ BraceWrapping:
     BeforeElse: true
 AlignAfterOpenBracket: DontAlign
 AllowShortFunctionsOnASingleLine: false
+BinPackArguments: false
