@@ -1643,7 +1643,7 @@ void record_block(int x, int y, int z, int w) {
     g->block0.y = y;
     g->block0.z = z;
     g->block0.w = w;
-    if (g->recording_macro) {
+    if (g->recording_macro >=0) {
         if (g->macro_count >= g->macro_size){
             Block *pbase = (Block *)realloc(g->macro_blocks, sizeof(Block)*(g->macro_count+250));
             if(pbase == NULL){
@@ -2392,18 +2392,19 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
         if (key == CRAFT_KEY_OBSERVE_INSET) {
             g->observe2 = (g->observe2 + 1) % g->player_count;
         }
-        if (key == CRAFT_KEY_MACRO) {
+        if ('1' <= key && key <= '9' && glfwGetKey(g->window, GLFW_KEY_RIGHT_SHIFT)) {
             if (control) {
-                if (g->recording_macro) {
-                    g->recording_macro = 0;
+                const int macro = key-'1';
+                if (g->recording_macro == macro) {
+                    g->recording_macro = -1;
                 }
                 else {
-                    g->recording_macro = 1;
+                    g->recording_macro = macro;
                     g->macro_count = 0;
                 }
             }
             else {
-                if (g->recording_macro == 0 && g->macro_count > 0) {
+                if (g->macro_count > 0) {
                     State *s = &g->players->state;
                     int hx, hy, hz;
                     hit_test(1, s->x, s->y, s->z, s->rx, s->ry, &hx, &hy, &hz);
@@ -2422,6 +2423,7 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
                             }
                         }
                     }
+                    g->recording_macro = -1;
                 }
             }
         }
@@ -2735,7 +2737,7 @@ void reset_model() {
     g->observe1 = 0;
     g->observe2 = 0;
     g->flying = 0;
-    g->recording_macro = 0;
+    g->recording_macro = -1;
     g->macro_size = 0;
     g->macro_blocks = NULL;
     g->item_index = 0;
@@ -3044,10 +3046,10 @@ int main(int argc, char **argv) {
                     hour,
                     am_pm,
                     fps.fps);
-                if (g->recording_macro) {
+                if (g->recording_macro >= 0) {
                     int remaining = 1023 - mlen;
                     snprintf(
-                        text_buffer + mlen, remaining, " R%d", g->macro_count);
+                        text_buffer + mlen, remaining, " R%d", g->recording_macro+1);
                 }
                 render_text(&text_attrib, ALIGN_LEFT, tx, ty, ts, text_buffer);
                 ty -= ts * 2;
