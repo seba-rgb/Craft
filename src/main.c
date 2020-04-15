@@ -28,7 +28,6 @@
 #define MAX_NAME_LENGTH 32
 #define MAX_PATH_LENGTH 256
 #define MAX_ADDR_LENGTH 256
-#define MAX_MACRO_BLOCKS 4
 
 #define ALIGN_LEFT 0
 #define ALIGN_CENTER 1
@@ -139,7 +138,8 @@ typedef struct {
     int flying;
     int recording_macro;
     int macro_count;
-    Block macro_blocks[MAX_MACRO_BLOCKS];
+    int macro_size;
+    Block *macro_blocks;
     int item_index;
     int scale;
     int ortho;
@@ -1643,8 +1643,15 @@ void record_block(int x, int y, int z, int w) {
     g->block0.y = y;
     g->block0.z = z;
     g->block0.w = w;
-    if (g->recording_macro && (g->macro_count < MAX_MACRO_BLOCKS)) {
-        // ARITMETICA DE PUNTEROS INZ
+    if (g->recording_macro) {
+        if (g->macro_count >= g->macro_size){
+            Block *pbase = (Block *)realloc(g->macro_blocks, sizeof(Block)*(g->macro_count+250));
+            if(pbase == NULL){
+                return;
+            }
+            g->macro_blocks = pbase;
+            g->macro_size+=250;
+        }
         Block *pb = g->macro_blocks + g->macro_count;
         pb->x = x;
         pb->y = y;
@@ -2410,7 +2417,7 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
                                     g->macro_blocks[0].z + hz;
                             int hw = get_block(x, y, z);
                             if (!player_intersects_block(
-                                    2, s->x, s->y, s->z, x, y, z)) {
+                                    2, s->x, s->y, s->z, x, y, z) && get_block(x, y-1, z) != 0 ) {
                                 set_block(x, y, z, g->macro_blocks[i].w);
                             }
                         }
@@ -2729,6 +2736,8 @@ void reset_model() {
     g->observe2 = 0;
     g->flying = 0;
     g->recording_macro = 0;
+    g->macro_size = 0;
+    g->macro_blocks = NULL;
     g->item_index = 0;
     memset(g->typing_buffer, 0, sizeof(char) * MAX_TEXT_LENGTH);
     g->typing = 0;
@@ -3145,6 +3154,9 @@ int main(int argc, char **argv) {
         delete_all_players();
     }
 
+    if(g->macro_blocks){
+        free(g->macro_blocks);
+    }
     glfwTerminate();
     curl_global_cleanup();
     return 0;
