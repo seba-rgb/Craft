@@ -28,6 +28,7 @@
 #define MAX_NAME_LENGTH 32
 #define MAX_PATH_LENGTH 256
 #define MAX_ADDR_LENGTH 256
+#define BLOCKPOOL_SIZE 167
 
 #define ALIGN_LEFT 0
 #define ALIGN_CENTER 1
@@ -82,6 +83,13 @@ typedef struct {
     int z;
     int w;
 } Block;
+
+typedef struct _BlockList
+{
+    Block block;
+    struct _BlockList *next;
+} BlockList;
+
 
 typedef struct {
     float x;
@@ -139,7 +147,8 @@ typedef struct {
     int recording_macro;
     int macro_count;
     int macro_size;
-    Block *macro_blocks;
+    BlockList *macro_blocks;
+    BlockList *macro_begins[9];
     int item_index;
     int scale;
     int ortho;
@@ -1638,26 +1647,44 @@ void set_block(int x, int y, int z, int w) {
 }
 
 void record_block(int x, int y, int z, int w) {
-    memcpy(&g->block1, &g->block0, sizeof(Block));
+    memcpy (&g->block1, &g->block0, sizeof(Block));
     g->block0.x = x;
     g->block0.y = y;
     g->block0.z = z;
     g->block0.w = w;
-    if (g->recording_macro >=0) {
-        if (g->macro_count >= g->macro_size){
-            Block *pbase = (Block *)realloc(g->macro_blocks, sizeof(Block)*(g->macro_count+250));
-            if(pbase == NULL){
+    if (g->recording_macro >= 0) {
+        if (g->macro_count >= g->macro_size) {
+            BlockList *pbase = (BlockList *) realloc(g->macro_blocks, sizeof(BlockList) * (g->macro_count + BLOCKPOOL_SIZE));
+            if (pbase == NULL) {
                 return;
             }
+            long dist = (void *) pbase - (void *) g->macro_blocks;
+            for (BlockList **phead = g->macro_begins; phead < g->macro_begins + 9; phead++) {
+                if (*phead) {
+                    *phead = (BlockList *)(((void *) *phead) + dist);
+                    for (BlockList *block = (*phead); block; block = block->next) {
+                        if (block->next) {
+                            block->next = (BlockList *)(((void *)block->next) + dist);
+                        }
+                    }
+                }
+            }
             g->macro_blocks = pbase;
-            g->macro_size+=250;
+            g->macro_size += BLOCKPOOL_SIZE;
         }
-        Block *pb = g->macro_blocks + g->macro_count;
-        pb->x = x;
-        pb->y = y;
-        pb->z = z;
-        pb->w = w;
+        BlockList *pb = g->macro_blocks + g->macro_count;
+        pb->block.x = x;
+        pb->block.y = y;
+        pb->block.z = z;
+        pb->block.w = w;
+        pb->next = NULL;
         g->macro_count++;
+        BlockList **newpos;
+        for (newpos = &g->macro_begins[g->recording_macro]; *newpos; newpos = &((*newpos)->next))
+        {
+            ;
+        }
+        *newpos = pb;
     }
 }
 
@@ -2294,6 +2321,41 @@ void on_middle_click() {
     }
 }
 
+void delete_macro(int macro){
+    for (BlockList *pb = g->macro_begins[macro]; pb; ) {
+        if (g->macro_count > 1) {
+            BlockList *source = &g->macro_blocks[g->macro_count-1];
+            BlockList *next = pb->next;
+            memcpy (pb, source, sizeof(BlockList));
+            g->macro_count--;
+            if (source == next) {
+                next = pb;
+            }
+            else {
+                int found = 0;
+                for (BlockList **head = g->macro_begins; !found && head < g->macro_begins+10; head++) {
+                    if (*head == source){
+                        *head = pb;
+                        found = 1;
+                    }
+                }
+                for (BlockList *pc = g->macro_blocks; !found && pc < g->macro_blocks + g->macro_count; pc++) {
+                    if (pc->next == source) {
+                        pc->next = pb;
+                        found = 1;
+                    }
+                }
+            }
+            pb = next;
+        }
+        else {
+            g->macro_count = 0;
+            pb = NULL;
+        }
+    }
+    g->macro_begins[macro] = NULL;
+}
+
 void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
     int control = mods & (GLFW_MOD_CONTROL | GLFW_MOD_SUPER);
     int exclusive =
@@ -2400,27 +2462,25 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
                 }
                 else {
                     g->recording_macro = macro;
-                    g->macro_count = 0;
+                    delete_macro(macro);
                 }
             }
             else {
-                if (g->macro_count > 0) {
-                    State *s = &g->players->state;
-                    int hx, hy, hz;
-                    hit_test(1, s->x, s->y, s->z, s->rx, s->ry, &hx, &hy, &hz);
-                    for (int i = 0; i < g->macro_count; i++) {
-                        int y =
-                            g->macro_blocks[i].y - g->macro_blocks[0].y + hy;
-                        if (y > 0 && y < 256) {
-                            int x = g->macro_blocks[i].x -
-                                    g->macro_blocks[0].x + hx;
-                            int z = g->macro_blocks[i].z -
-                                    g->macro_blocks[0].z + hz;
-                            int hw = get_block(x, y, z);
-                            if (!player_intersects_block(
-                                    2, s->x, s->y, s->z, x, y, z) && get_block(x, y-1, z) != 0 ) {
-                                set_block(x, y, z, g->macro_blocks[i].w);
-                            }
+                State *s = &g->players->state;
+                int hx, hy, hz;
+                hit_test(1, s->x, s->y, s->z, s->rx, s->ry, &hx, &hy, &hz);
+                BlockList *head = g->macro_begins[key-'1'];
+                for (const BlockList *list = head; list; list = list->next) {
+                    int y = list->block.y - head->block.y + hy;
+                    if (y > 0 && y < 256) {
+                        int x = list->block.x -
+                                head->block.x + hx;
+                        int z = list->block.z -
+                                head->block.z + hz;
+                        int hw = get_block(x, y, z);
+                        if (!player_intersects_block(
+                                2, s->x, s->y, s->z, x, y, z) && get_block(x, y-1, z) != 0 ) {
+                            set_block(x, y, z, list->block.w);
                         }
                     }
                     g->recording_macro = -1;
@@ -2740,6 +2800,7 @@ void reset_model() {
     g->recording_macro = -1;
     g->macro_size = 0;
     g->macro_blocks = NULL;
+    memset(g->macro_begins, 0, sizeof(g->macro_begins));
     g->item_index = 0;
     memset(g->typing_buffer, 0, sizeof(char) * MAX_TEXT_LENGTH);
     g->typing = 0;
