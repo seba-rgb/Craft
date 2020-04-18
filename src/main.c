@@ -2356,6 +2356,33 @@ void delete_macro(int macro){
     g->macro_begins[macro] = NULL;
 }
 
+void delete_macro_2(int macro){
+    if (g->macro_begins[macro] == NULL){
+        return;
+    }
+    BlockList *delete_from = g->macro_begins[macro];
+    BlockList *delete_end;
+    for (delete_end = delete_from; delete_end->next; delete_end = delete_end->next){
+        ;
+    }
+    const int delete_count = delete_end - delete_from + 1;
+    g->macro_begins[macro] = NULL;
+    if (delete_end == g->macro_blocks + g->macro_count - 1) {
+        g->macro_count -= delete_count;
+        return;
+    }
+    memmove (delete_from, delete_end + 1, (void*)(g->macro_blocks + g->macro_count) - (void*)delete_from);
+    g->macro_count -= delete_count;
+    for (BlockList *pb = delete_from; pb < g->macro_blocks + g->macro_count; pb++) {
+        pb->next -= delete_count;
+    }
+    for (BlockList **head = g->macro_begins; head < g->macro_begins + 9; head++) {
+        if (*head >= delete_from) {
+            *head -= delete_count;
+        }
+    }
+}
+
 void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
     int control = mods & (GLFW_MOD_CONTROL | GLFW_MOD_SUPER);
     int exclusive =
@@ -2462,7 +2489,7 @@ void on_key(GLFWwindow *window, int key, int scancode, int action, int mods) {
                 }
                 else {
                     g->recording_macro = macro;
-                    delete_macro(macro);
+                    delete_macro_2(macro);
                 }
             }
             else {
